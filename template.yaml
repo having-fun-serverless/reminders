@@ -12,9 +12,9 @@ Globals:
         LOG_LEVEL: INFO
 
 Parameters:
-  SlackWebhook:
+  Email:
     Type: String
-    Default: 'Get your slack webhook. Follow README for more details.'
+    Default: 'Send reminder to this email'
   SchedulerName:
     Type: String
     Default: 'slack-reminder-scheduler'
@@ -71,8 +71,8 @@ Resources:
     Type: AWS::SNS::Topic
     Properties:
       Subscription:
-        - Endpoint: !Ref SlackWebhook
-          Protocol: https 
+        - Endpoint: !Ref Email
+          Protocol: email 
 
         
   PublishToWebhookSNSRole:
