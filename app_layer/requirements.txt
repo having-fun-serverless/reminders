@@ -1,0 +1,2 @@
+boto3==1.26.8
+aws-lambda-powertools[parser]==2.2.0

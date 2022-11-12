@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Create slack reminders using the new scheduler.
+
+Globals:
+  Function:
+    Timeout: 6
+    Environment:
+      Variables:
+        POWERTOOLS_SERVICE_NAME: slack-reminder
+        LOG_LEVEL: INFO
+
+Parameters:
+  SlackWebhook:
+    Type: String
+    Default: 'Get your slack webhook. Follow README for more details.'
+  SchedulerName:
+    Type: String
+    Default: 'slack-reminder-scheduler'
+
+
+Resources:
+  RemindMeFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: remind_me/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Layers:
+        - !Ref SharedLibsLayer
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          SCHEDULER_NAME: !Ref SchedulerName
+          WEBHOOK_SNS_ARN: !Ref WebhookSNS
+          SNS_PUBLISH_ROLE_ARN: !GetAtt PublishToWebhookSNSRole.Arn
+
+
+  WebhookSNS:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref SlackWebhook
+          Protocol: https 
+
+        
+  PublishToWebhookSNSRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 'sns:Publish'
+                Resource: !Ref WebhookSNS
+
+  SharedLibsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: app_layer
+      CompatibleRuntimes:
+        - python3.9
+    Metadata:
+      BuildMethod: python3.9
