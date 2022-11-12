@@ -25,8 +25,9 @@ Resources:
     Type: AWS::Serverless::Function 
     Properties:
       CodeUri: remind_me/
-      Handler: app.lambda_handler
+      Handler: app.handler
       Runtime: python3.9
+      Role: !GetAtt CreateSchedulerLambdaRole.Arn
       Layers:
         - !Ref SharedLibsLayer
       Architectures:
@@ -38,6 +39,34 @@ Resources:
           SNS_PUBLISH_ROLE_ARN: !GetAtt PublishToWebhookSNSRole.Arn
 
 
+  CreateSchedulerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 'scheduler:CreateSchedule'
+                Resource: '*'
+                
+              - Effect: Allow
+                Action: 'iam:PassRole'
+                Resource: !GetAtt PublishToWebhookSNSRole.Arn
+  
   WebhookSNS:
     Type: AWS::SNS::Topic
     Properties:
@@ -47,8 +76,17 @@ Resources:
 
         
   PublishToWebhookSNSRole:
-    Type: 'AWS::IAM::Role'
+    Type: AWS::IAM::Role
     Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - scheduler.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
       Path: /
       Policies:
         - PolicyName: root
