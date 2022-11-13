@@ -3,17 +3,17 @@
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-    <img src="images/logo.png" alt="The following logo was created by Dall-E 2 with the following description _3d render of the twitter logo being uploaded to an aluminum bucket_">
+    <img src="images/logo-500.png" alt="A hand drawn sketch of a sticky note floating on a cloud">
 
-<h3 align="center">Backing up Twitter</h3>
+<h3 align="center">AWS Scheduler service</h3>
 
   <p align="center">
-    Backing up Twitter tweets became a hot topic in the last couple of days. I've decided to create a simple POC using Serverless components.
+    AWS recently released a new general-purpose scheduling service. The following repo demonstrates how to use it, by creating reminders sent via email.
     <br />
     <br />
-    <a href="https://github.com/aws-hebrew-book/backup-twitter/issues">Report Bug</a>
+    <a href="https://github.com/aws-hebrew-book/reminders/issues">Report Bug</a>
     ·
-    <a href="https://github.com/aws-hebrew-book/backup-twitter/issues">Request Feature</a>
+    <a href="https://github.com/aws-hebrew-book/reminders/issues">Request Feature</a>
   </p>
 </div>
 
@@ -23,10 +23,7 @@
   <summary>Table of Contents</summary>
   <ol>
     <li>
-      <a href="#about-the-project">About The Project</a>
-      <ul>
-        <li><a href="#high-level-architecture">High level architecture</a></li>
-      </ul>
+      <a href="#high-level-architecture">High level architecture</a>
     </li>
     <li>
       <a href="#getting-started">Getting Started</a>
@@ -34,15 +31,6 @@
         <li><a href="#prerequisites">Prerequisites</a></li>
         <li><a href="#installation">Installation</a></li>
         <li><a href="#testing">Testing</a></li>
-        <li><a href="#monitoring">Monitoring</a></li>
-      </ul>
-    </li>
-    <li>
-      <a href="#landmarks">Landmarks</a>
-      <ul>
-        <li><a href="#dynamic-partitioning">Dynamic Partitioning</a></li>
-        <li><a href="#parameters-and-secret-store-extension">Parameters and Secret store extension</a></li>
-        <li><a href="#batch-processing">Batch processing</a></li>
       </ul>
     </li>
     <li><a href="#contributing">Contributing</a></li>
@@ -52,66 +40,38 @@
   </ol>
 </details>
 
-## About The Project
-Taking a real-world issue and trying to tackle it using Serverless components is an excellent way to learn about Serverless. The following Serverless application uses a scheduled task that runs once per day and backs up all the Twitter handles that you've configured.
 
-After deployment you can configure the relevant Twitter handles you want to backup by changing the value of a parameter called TwitterAccounts found under the [Parameters Store](https://us-east-1.console.aws.amazon.com/systems-manager/parameters?region=us-east-1)..
-
-Each day the Twitter handles are backed up at 10 AM UTC time. Due to Twitter API restrictions, only the previous day's tweets are being backup up. You can find your tweets under S3.
+## High level architecture
 
 <div align="center">
-    <img src="images/s3-bucket.png" alt="Tweets under S3">
+    <img src="images/scheduler.png" alt="Architecture diagram">
 </div>
 
-### High level architecture
-
-<div align="center">
-    <img src="images/twitter-backup.png" alt="Architecture diagram">
-</div>
-
-1. We have an evenbridge as a cron scheduler.
-2. A Lambda is being triggered every day at 10 AM UTC.
-3. In order to pull the configuration, the [AWS Parameters and Secrets Lambda Extension](https://docs.aws.amazon.com/systems-manager/latest/userguide/ps-integration-lambda-extensions.html) is used.
-4. Each Twitter handle is being pushed as a separate message into SQS.
-5. Using the [batch processing utility](https://awslabs.github.io/aws-lambda-powertools-python/2.1.0/utilities/batch/) in the Python Lambda Power tools. Each message is processed
-6. For each handle, we are making a Twitter API call to get the Twitter account id and then the tweets from the last day
-7. The Twitter bearer token, which is required for authentication, is pulled from the AWS secret manager using [AWS Parameters and Secrets Lambda Extension](https://docs.aws.amazon.com/secretsmanager/latest/userguide/retrieving-secrets_lambda.html)
-8. Tweets are written into AWS Kinesis Firehose which writes them into S3. 
-9. [Dynamic partitioning](https://docs.aws.amazon.com/firehose/latest/dev/dynamic-partitioning.html) is used, therefore the files created under S3 have handle prefixes.
+1. Use a single Lambda to create a schedule.
+2. On the desginated time, the scheduler pushes a message into SNS
+3. Which in turn sends an email.
 
 
 ## Getting started
 ### Prerequisites
 * Make sure your machine is ready to work with [AWS SAM](https://aws.amazon.com/serverless/sam/)
-* Create a [twitter API account](https://developer.twitter.com/en/docs/twitter-api/getting-started/getting-access-to-the-twitter-api)
-* And save locally your `Bearer Token`, you should receive it at the end of the registration process
 
 ### Installation
 * Clone this repository.
 * Run `sam build` and then `sam deploy --guided`. Accept the default values, except for 
-    * _Parameter TwitterBearerToken_ - paste the token value you've recevied from Twitter. 
-    * _Parameter TwitterAccountsValues_ - Choose the Twitter handles you want to back up. Of course, you can use the default here.
+    * _Parameter Email - Send a reminder to this email. 
 
-After the deployment is complete you can always change the Twitter handles you want to back up by changing the value found under https://us-east-1.console.aws.amazon.com/systems-manager/parameters?region=us-east-1
 
 ### Testing
-* You can test the application manully by executing the `ScheduleBackupFunction` Lambda directly from the console.
+* You can test the application manully by executing the `RemindMeFunction` Lambda directly from the console. It accepts a json with the following structure:
+```
+{
+  "content": "Hello my friend",
+  "when": "2022-11-12T23:20",
+  "timezone": "Asia/Bangkok"
+}
+```
 
-### Monitoring
-Monitoring is done by using [Lumigo](https://platform.lumigo.io/auth/signup)
-
-## Landmarks
-### Dynamic Partitioning 
-* IAM Policy for allowing the FH to write into S3 - https://github.com/aws-hebrew-book/backup-twitter/blob/de603d2e41826f5511caefbd78a4b2be841847e5/template.yaml#L109
-* The FH configuration which includes the Dynamic Partitioning configuration - https://github.com/aws-hebrew-book/backup-twitter/blob/de603d2e41826f5511caefbd78a4b2be841847e5/template.yaml#L138
-
-### Parameters and Secret store extension
-* Create relevant parms in SAM's yaml - https://github.com/aws-hebrew-book/backup-twitter/blob/de603d2e41826f5511caefbd78a4b2be841847e5/template.yaml#L167
-* Attached extension to the Lambda - https://github.com/aws-hebrew-book/backup-twitter/blob/de603d2e41826f5511caefbd78a4b2be841847e5/template.yaml#L40
-* Pull parameters via code - https://github.com/aws-hebrew-book/backup-twitter/blob/de603d2e41826f5511caefbd78a4b2be841847e5/shared/parameters_utils.py#L7
-
-### Batch processing
-* Use SQS batch processor - https://github.com/aws-hebrew-book/backup-twitter/blob/de603d2e41826f5511caefbd78a4b2be841847e5/pull_twitter_stream/app.py#L44
 ## Contributing
 
 Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
@@ -139,7 +99,7 @@ Efi Merdler-Kravitz - [@TServerless](https://twitter.com/TServerless)
 
 
 ## Logo
-The project's logo was created by Dall-E 2 with the following description _3d render of the twitter logo being uploaded to an aluminum bucket_
+The project's logo was created by Dall-E 2 with the following description _A hand drawn sketch of a sticky note floating on a cloud_
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
